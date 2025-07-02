@@ -2,7 +2,7 @@
 
 import numpy as np
 import time
-from src.simulated_display import SimulatedLEDDisplay # Import our base display
+from src.simulated_display import SimulatedLEDDisplay
 
 class SimulatedParticleDetector(SimulatedLEDDisplay):
     """
@@ -10,61 +10,50 @@ class SimulatedParticleDetector(SimulatedLEDDisplay):
     Pixels represent detector cells that register energy.
     """
     def __init__(self, width, height, initial_background=(0, 0, 0), max_energy_per_pixel=255):
-        """
-        Initializes the simulated detector.
-        :param width: Width of the detector grid.
-        :param height: Height of the detector grid.
-        :param initial_background: Initial color (e.g., background noise level).
-        :param max_energy_per_pixel: Maximum 'energy' a single pixel can register.
-                                     Corresponds to 255 for brightness.
-        """
         super().__init__(width, height, initial_background)
         self.max_energy_per_pixel = max_energy_per_pixel
         print(f"SimulatedParticleDetector initialized: {width}x{height} cells.")
 
-    def simulate_particle_hit(self, impact_x, impact_y, energy_deposited, spread_radius=1.0):
+    def simulate_particle_hit(self, impact_x, impact_y, peak_brightness_contribution, spread_radius=1.0):
         """
-        Simulates a particle hitting the detector.
-        Energy is distributed radially from the impact point.
+        Simulates a particle hitting the detector with a Gaussian energy spread.
+        'peak_brightness_contribution' directly controls the maximum pixel brightness at the center.
         :param impact_x: X-coordinate of the particle impact.
         :param impact_y: Y-coordinate of the particle impact.
-        :param energy_deposited: Total 'energy' deposited by the particle.
-        :param spread_radius: How far the energy spreads from the impact point (in pixels).
+        :param peak_brightness_contribution: The desired brightness (0-255) for the pixel at the impact center.
+        :param spread_radius: A measure of how far the energy spreads (roughly 2.5 sigma of the Gaussian).
         """
-        print(f"Simulating particle hit at ({impact_x:.1f},{impact_y:.1f}) with energy {energy_deposited:.2f}, radius {spread_radius:.1f}")
+        print(f"Simulating particle hit at ({impact_x:.1f},{impact_y:.1f}) with peak brightness {peak_brightness_contribution:.0f}, radius {spread_radius:.1f}")
+
+        # Ensure peak_brightness_contribution is within valid range (0-255)
+        peak_brightness_contribution = min(max(0, peak_brightness_contribution), self.max_energy_per_pixel)
+
+        # Define the standard deviation (sigma) for the Gaussian spread
+        sigma = spread_radius / 2.5 # Let's say radius covers about 2.5 sigma
 
         # Determine the affected region (bounding box around the impact)
-        x_min = max(0, int(impact_x - spread_radius))
-        x_max = min(self.width, int(impact_x + spread_radius + 1))
-        y_min = max(0, int(impact_y - spread_radius))
-        y_max = min(self.height, int(impact_y + spread_radius + 1))
+        # Extend bounds slightly to capture the tails of the Gaussian
+        buffer_pixels = int(spread_radius * 2) # Ensures full spread is captured
+        x_min = max(0, int(impact_x - buffer_pixels))
+        x_max = min(self.width, int(impact_x + buffer_pixels + 1))
+        y_min = max(0, int(impact_y - buffer_pixels))
+        y_max = min(self.height, int(impact_y + buffer_pixels + 1))
 
-        # Simple radial energy distribution
         for y in range(y_min, y_max):
             for x in range(x_min, x_max):
-                distance = np.sqrt((x - impact_x)**2 + (y - impact_y)**2)
+                distance_sq = (x - impact_x)**2 + (y - impact_y)**2
                 
-                if distance <= spread_radius:
-                    # Energy falls off with distance from center
-                    # We'll use a simple linear falloff, but a Gaussian could be more realistic
-                    intensity_factor = (spread_radius - distance) / spread_radius
-                    # Scale deposited energy to fit into RGB (0-255)
-                    # Distribute total energy over affected pixels roughly,
-                    # capping individual pixel energy at max_energy_per_pixel
-                    
-                    # For simplicity, distribute energy such that pixels closest to center get more
-                    # Sum of intensity_factors might be used to normalize total_energy_deposited
-                    # But for now, let's just make each affected pixel light up based on factor
-                    
-                    # Distribute energy such that the total sum roughly equals energy_deposited
-                    # This simplified approach gives brighter pixels near the center
-                    energy_at_pixel = energy_deposited * intensity_factor * 0.1 # Scaling factor to prevent overflow
-                    
-                    # Add to all R, G, B channels equally for a "white/grayscale" energy deposition
-                    energy_val = int(min(self.max_energy_per_pixel, energy_at_pixel))
-                    self.add_pixel_value(x, y, energy_val, energy_val, energy_val)
+                # Gaussian value for this pixel (between 0 and 1, peaking at 1 at center)
+                gaussian_intensity = np.exp(-distance_sq / (2 * sigma**2))
+                
+                # Scale by the desired peak_brightness_contribution
+                pixel_value_to_add = int(peak_brightness_contribution * gaussian_intensity)
+                
+                # Add to all R, G, B channels equally for a "white/grayscale" energy deposition
+                self.add_pixel_value(x, y, pixel_value_to_add, pixel_value_to_add, pixel_value_to_add)
         
         time.sleep(0.005) # Simulate processing time for a hit
+
 
     def add_background_noise(self, noise_level, seed=None):
         """
@@ -94,3 +83,11 @@ class SimulatedParticleDetector(SimulatedLEDDisplay):
     def get_max_pixel_value(self):
         """Returns the highest single pixel channel value on the display."""
         return np.max(self._display_memory)
+
+
+
+
+
+
+###########
+
