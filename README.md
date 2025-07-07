@@ -1,4 +1,4 @@
-# Simulated Firmware Project: From Display to Detector to Deep Learning
+# Simulated Firmware Project: From Display to Detector to Deep Learning >> SELF PROJECT
 
 This project explores the development of simulated firmware for a modular display system, evolving into a particle detector simulation, and culminating in the application of deep learning for event classification. It's designed to showcase a progression from low-level hardware simulation to high-level machine learning applications within a structured Python project.
 
